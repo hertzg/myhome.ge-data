@@ -1,4 +1,5 @@
 import { chunk } from "https://deno.land/std@0.197.0/collections/chunk.ts";
+import ProgressBar from "https://deno.land/x/progress@v1.3.8/mod.ts";
 
 const fetchPage = async (page: number = 1) => {
   const res = await fetch(
@@ -13,11 +14,11 @@ const cachedFetchPage = async (page: number = 1) => {
   try {
     const data = await Deno.readTextFile(path);
     const parsed = JSON.parse(data);
-    console.log("cachedFetchPage", page, "hit");
+    //console.log("cachedFetchPage", page, "hit");
     return parsed;
   } catch (e) {
     if (e instanceof Deno.errors.NotFound) {
-      console.log("cachedFetchPage", page, "miss");
+      //console.log("cachedFetchPage", page, "miss");
       const data = await fetchPage(page);
       await Deno.writeTextFile(path, JSON.stringify(data));
       return data;
@@ -27,14 +28,37 @@ const cachedFetchPage = async (page: number = 1) => {
 
 const preloadPages = async (pages: number[] = []) => {
   const data = [];
+  let i = 0;
   for (const page of pages) {
+    // if (i % 50 === 0) {
+    //   console.log(
+    //     "preloadPages",
+    //     `[${Math.min(...pages)}-${Math.max(...pages)}]`,
+    //     "loading",
+    //     page,
+    //     "out of",
+    //     pages.length,
+    //   );
+    // }
     data.push(await cachedFetchPage(page));
+    completed++;
+    progress.render(completed++);
   }
   return data;
 };
 
+let progress: any, completed = 0;
+
 export const main = async (): Promise<void> => {
-  const chunks = chunk(new Array(12168).fill(0).map((_, i) => i + 1), 2000);
+  const totalPages = 12168;
+  progress = new ProgressBar({
+    total: totalPages,
+    display: ":bar :percent elapsed :time eta :eta",
+  });
+  const chunks = chunk(
+    new Array(totalPages).fill(0).map((_, i) => i + 1),
+    2000,
+  );
   const dataChunks = await Promise.all(
     chunks.map((pages) => preloadPages(pages)),
   );
